@@ -1,0 +1,3 @@
+target/
+lean_verifier/.lake/
+.git/

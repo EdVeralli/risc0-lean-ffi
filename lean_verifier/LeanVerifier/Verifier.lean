@@ -44,8 +44,8 @@ theorem commitment_soundness (hash value salt : UInt64) :
     verifyCommitment hash value salt = true →
     hash = createCommitment value salt := by
   intro h
-  simp [verifyCommitment] at h
-  exact eq_of_beq h
+  simp only [verifyCommitment, beq_iff_eq] at h
+  exact h.symm
 
 -- ============================================
 -- VERIFICACIÓN DE HASH OUTPUT (para RISC Zero)
@@ -60,9 +60,9 @@ theorem hash_output_soundness (h0 h1 h2 h3 e0 e1 e2 e3 : UInt64) :
     verifyHashOutput h0 h1 h2 h3 e0 e1 e2 e3 = true →
     h0 = e0 ∧ h1 = e1 ∧ h2 = e2 ∧ h3 = e3 := by
   intro h
-  simp [verifyHashOutput] at h
+  simp only [verifyHashOutput, Bool.and_eq_true, beq_iff_eq] at h
   obtain ⟨⟨⟨hh0, hh1⟩, hh2⟩, hh3⟩ := h
-  exact ⟨eq_of_beq hh0, eq_of_beq hh1, eq_of_beq hh2, eq_of_beq hh3⟩
+  exact ⟨hh0, hh1, hh2, hh3⟩
 
 -- ============================================
 -- FUNCIONES EXPORTADAS PARA FFI

@@ -13,15 +13,12 @@ use sha2::{Sha256, Digest};
 // FFI: Funciones importadas desde Lean
 // ============================================
 
-#[cfg(feature = "lean-ffi")]
 extern "C" {
     fn lean_create_commitment(value: u64, salt: u64) -> u64;
     fn lean_verify_commitment(hash: u64, value: u64, salt: u64) -> u8;
-    fn lean_verify_hash_eq(h1: u64, h2: u64) -> u8;
 }
 
 // Wrappers seguros para las funciones Lean
-#[cfg(feature = "lean-ffi")]
 mod lean {
     use super::*;
 
@@ -31,27 +28,6 @@ mod lean {
 
     pub fn verify_commitment(hash: u64, value: u64, salt: u64) -> bool {
         unsafe { lean_verify_commitment(hash, value, salt) == 1 }
-    }
-
-    pub fn verify_hash_eq(h1: u64, h2: u64) -> bool {
-        unsafe { lean_verify_hash_eq(h1, h2) == 1 }
-    }
-}
-
-// Fallback cuando no hay Lean FFI
-#[cfg(not(feature = "lean-ffi"))]
-mod lean {
-    pub fn create_commitment(value: u64, salt: u64) -> u64 {
-        let h1 = (value as u128) * 31 + (salt as u128);
-        (h1 % 999983) as u64
-    }
-
-    pub fn verify_commitment(hash: u64, value: u64, salt: u64) -> bool {
-        create_commitment(value, salt) == hash
-    }
-
-    pub fn verify_hash_eq(h1: u64, h2: u64) -> bool {
-        h1 == h2
     }
 }
 
@@ -111,7 +87,7 @@ fn main() {
     // Generar la prueba ZK
     println!("  Generando prueba ZK... (esto puede tardar)");
     let prover = default_prover();
-    let receipt = prover.prove(env, GUEST_ELF).unwrap();
+    let receipt = prover.prove(env, GUEST_ELF).unwrap().receipt;
     println!("  ✓ Prueba generada!");
     println!();
 
