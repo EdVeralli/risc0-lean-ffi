@@ -105,9 +105,42 @@ docker run --rm risc0-lean-ffi
 
 ---
 
+## Roles: Host, Prover, Verifier y Guest
+
+Antes de explicar que hace el programa, es importante entender los roles involucrados.
+
+En un sistema de pruebas de conocimiento cero (ZKP) hay tres roles:
+
+| Rol | Quien es | Que hace |
+|-----|----------|----------|
+| **Prover** | Quien quiere demostrar algo | "Yo conozco un secreto cuyo hash es X" — sin revelar el secreto |
+| **Verifier** | Quien quiere verificar esa afirmacion | Recibe la prueba y la valida criptograficamente. **No conoce el secreto** |
+| **Guest** | El programa que corre dentro del zkVM | Ejecuta la computacion (SHA256) de forma aislada. Su ejecucion correcta es lo que la prueba STARK certifica |
+
+### Que es el Host
+
+El **Host** (`host/src/main.rs`) es el programa que corre en tu maquina, **fuera** del zkVM. Es el que orquesta todo.
+
+En esta demo, el host cumple **ambos** roles (prover y verifier) en un mismo programa:
+
+- **Como Prover:** conoce el secreto, lo envia al guest dentro del zkVM, y obtiene la prueba generada (`receipt`)
+- **Como Verifier:** recibe el `receipt` y lo verifica con `receipt.verify(GUEST_ID)`
+
+> **En un sistema real**, prover y verifier serian **programas distintos en maquinas distintas**. El prover generaria la prueba y se la enviaria al verifier. El verifier no necesita el secreto — solo necesita el `receipt` y el `GUEST_ID` para validar. Aqui ambos roles estan en el mismo programa para simplificar la demo.
+
+### Que es el Guest
+
+El **Guest** (`methods/guest/src/main.rs`) es el programa que corre **dentro** del zkVM (una maquina virtual RISC-V). Es el codigo cuya ejecucion correcta queda certificada por la prueba STARK.
+
+- Recibe inputs privados con `env::read()` — estos **nunca** salen del zkVM
+- Publica outputs con `env::commit()` — estos van al **journal** (output publico)
+- No tiene acceso a internet, disco ni nada externo — esta completamente aislado
+
+---
+
 ## Que hace el programa
 
-El programa ejecuta tres partes en secuencia:
+El programa ejecuta tres partes en secuencia. Ahora que sabemos los roles, veamos que hace cada parte:
 
 ### Parte 1: Lean FFI - Commitment Scheme
 
@@ -122,7 +155,9 @@ El programa ejecuta tres partes en secuencia:
 
 **Que esta pasando:**
 
-1. Llama a `lean_create_commitment(42, 12345)` — una funcion escrita en Lean, compilada a C, linkeada en Rust via FFI
+El **host** llama a funciones escritas en Lean 4 via FFI (Foreign Function Interface):
+
+1. Llama a `lean_create_commitment(42, 12345)` — una funcion escrita en Lean, compilada a C, linkeada en Rust
 2. Lean calcula: `(42 * 31 + 12345) % 999983 = 13647`
 3. Verifica que `lean_verify_commitment(13647, 42, 12345)` retorna `true` (el commitment es correcto)
 4. Verifica que `lean_verify_commitment(13647, 99, 12345)` retorna `false` (valor falso, no pasa)
@@ -134,7 +169,7 @@ El programa ejecuta tres partes en secuencia:
 
 Lean verifica estos teoremas en tiempo de compilacion. Si el codigo contradice los teoremas, `lake build` falla.
 
-### Parte 2: RISC Zero - Prueba ZK
+### Parte 2: Prover - Genera la prueba ZK
 
 ```
 ═══ Parte 2: RISC Zero - Prueba ZK ═══
@@ -148,29 +183,32 @@ Lean verifica estos teoremas en tiempo de compilacion. Si el codigo contradice l
 
 **Que esta pasando:**
 
-1. El host define un secreto: `"mi_secreto_super_secreto_12345"` (30 bytes)
-2. Calcula `SHA256(secreto)` para saber el hash esperado
-3. Pasa el secreto al **guest** como input privado
-4. El guest corre dentro del **zkVM** (maquina virtual RISC-V de RISC Zero):
+El **host** (actuando como **prover**) quiere demostrar que conoce un secreto sin revelarlo:
+
+1. El host tiene un secreto: `"mi_secreto_super_secreto_12345"` (30 bytes)
+2. Calcula `SHA256(secreto)` localmente — esto es solo un "me lo anoto" para la demo (ver nota abajo)
+3. Envia el secreto al **guest** como input privado
+4. El **guest** corre dentro del **zkVM**:
    - Lee el secreto (input privado — jamas sale del zkVM)
    - Calcula `SHA256(secreto)` dentro del zkVM
    - Publica el hash en el **journal** (output publico)
-5. RISC Zero genera una prueba STARK que certifica que el guest ejecuto correctamente
-
-**Concepto clave:** El **prover** demuestra que conoce un secreto cuyo SHA256 es `0x98ade8a85025b727...` sin revelar cual es ese secreto. Esto es una **Zero-Knowledge Proof**.
+5. RISC Zero genera una **prueba STARK** que certifica que el guest ejecuto correctamente
+6. El resultado es un **receipt** = journal (hash publico) + prueba STARK
 
 ```
               ┌─────────────────────────────┐
-              │         zkVM (Guest)         │
+  PROVER      │         zkVM (Guest)         │
+  (host)      │                              │
               │                              │
-  secreto ──→ │  hash = SHA256(secreto)      │ ──→ hash (publico)
-  (privado)   │  env::commit(&hash)          │     + prueba STARK
-              │                              │
+  secreto ──→ │  hash = SHA256(secreto)      │ ──→ receipt:
+  (privado)   │  env::commit(&hash)          │     - hash (journal, publico)
+              │                              │     - prueba STARK
               └─────────────────────────────┘
-                    El secreto NUNCA sale
+                    El secreto MUERE aqui.
+                    Solo el hash sale.
 ```
 
-### Parte 3: Verificacion
+### Parte 3: Verifier - Valida la prueba ZK
 
 ```
 ═══ Parte 3: Verificación ═══
@@ -182,12 +220,15 @@ Lean verifica estos teoremas en tiempo de compilacion. Si el codigo contradice l
 
 **Que esta pasando:**
 
-1. Extrae el hash del **journal** (output publico del guest)
-2. Compara con el hash que calculo el host — deben coincidir
-3. Llama a `receipt.verify(GUEST_ID)`:
-   - Verifica la prueba STARK criptograficamente
-   - Confirma que el guest ejecuto el codigo correcto (identificado por `GUEST_ID`)
+El **host** (ahora actuando como **verifier**) valida la prueba:
+
+1. Lee el hash del **journal** (output publico que el guest produjo dentro del zkVM)
+2. Llama a `receipt.verify(GUEST_ID)` — **esta es la verificacion ZK real**:
+   - Valida la prueba STARK criptograficamente
+   - Confirma que se ejecuto el guest correcto (identificado por `GUEST_ID`)
    - Si alguien modifico el guest o el journal, la verificacion falla
+
+> **Nota didactica sobre "¿Hashes coinciden?":** Esta comparacion solo existe porque en esta demo el host es prover **y** verifier a la vez. Como el host conoce el secreto (es el prover), puede calcular SHA256 localmente y compararlo con el hash del journal. **En un sistema real, un verifier NO podria hacer esta comparacion** porque no conoce el secreto — solo recibe el receipt y hace `receipt.verify(GUEST_ID)`. Esta linea esta en la demo solo para mostrar que el guest calculo el hash correctamente, pero no es parte del protocolo ZK.
 
 ### Resultado final
 
@@ -201,35 +242,6 @@ Lean verifica estos teoremas en tiempo de compilacion. Si el codigo contradice l
   ⚠ El secreto NUNCA fue revelado
 ═══════════════════════════════════════════════════════════
 ```
-
----
-
-## Roles: Host, Prover, Verifier y Guest
-
-En un sistema de pruebas de conocimiento cero hay tres roles conceptuales:
-
-| Rol | Quien es | Que hace |
-|-----|----------|----------|
-| **Prover** | Quien quiere demostrar algo | "Yo conozco un secreto cuyo hash es X" — sin revelar el secreto |
-| **Verifier** | Quien quiere verificar la afirmacion | Recibe la prueba y la valida criptograficamente, sin ver el secreto |
-| **Guest** | El programa que corre dentro del zkVM | Ejecuta la computacion (SHA256) de forma aislada; su ejecucion correcta es lo que la prueba STARK certifica |
-
-### Que es el Host
-
-El **Host** (`host/src/main.rs`) es el programa que corre en tu maquina (fuera del zkVM). En este proyecto, el host cumple **ambos** roles:
-
-- **Como Prover:** prepara el secreto, lo envia al guest dentro del zkVM, y obtiene la prueba generada (`receipt`)
-- **Como Verifier:** recibe el `receipt` y lo verifica con `receipt.verify(GUEST_ID)`
-
-En un sistema real, prover y verifier serian programas distintos en maquinas distintas. El prover generaria la prueba y se la enviaria al verifier. Aqui ambos roles estan en el mismo programa para simplificar la demo.
-
-### Que es el Guest
-
-El **Guest** (`methods/guest/src/main.rs`) es el programa que corre **dentro** del zkVM (una maquina virtual RISC-V). Es el codigo cuya ejecucion correcta queda certificada por la prueba STARK.
-
-- Recibe inputs privados con `env::read()` — estos **nunca** salen del zkVM
-- Publica outputs con `env::commit()` — estos van al **journal** (publico)
-- No tiene acceso a internet, disco ni nada externo — esta aislado
 
 ## Flujo completo del proyecto
 
@@ -263,17 +275,25 @@ El **Guest** (`methods/guest/src/main.rs`) es el programa que corre **dentro** d
 │                                                                  │
 │  Parte 3 — Verifier (valida la prueba):                          │
 │    1. Host (como verifier) lee el hash del journal               │
-│    2. Verifica la prueba: receipt.verify(GUEST_ID)               │
+│    2. "¿Hashes coinciden?" → solo didactico (*)                  │
+│    3. receipt.verify(GUEST_ID) → ESTA es la verificacion real    │
 │       - Valida la prueba STARK criptograficamente                │
 │       - Confirma que se ejecuto el guest correcto (GUEST_ID)     │
 │       - Si alguien modifico el guest o el journal, FALLA         │
-│    3. Resultado: el prover conoce un secreto valido              │
+│    4. Resultado: el prover conoce un secreto valido              │
 │       sin haberlo revelado                                       │
 └──────────────────────────────────────────────────────────────────┘
 
-En un sistema real, el prover enviaria el receipt a un verifier
-externo. El verifier solo necesita el receipt y el GUEST_ID para
-validar — no necesita el secreto ni acceso al zkVM.
+(*) "¿Hashes coinciden?" compara el hash local del host con el del
+journal. Esto solo es posible porque el host es prover Y verifier.
+En un sistema real, el verifier NO conoce el secreto, por lo tanto
+no puede calcular el hash por su cuenta. Solo hace
+receipt.verify(GUEST_ID).
+
+En un sistema real:
+  Prover ──genera receipt──→ lo envia ──→ Verifier
+  El verifier solo necesita el receipt y el GUEST_ID para validar.
+  No necesita el secreto ni acceso al zkVM.
 ```
 
 ---
