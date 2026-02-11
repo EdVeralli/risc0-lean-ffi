@@ -34,6 +34,7 @@ El proyecto demuestra como usar funciones formalmente verificadas en Lean 4 desd
 
 - **[INSTALL.md](INSTALL.md)** — Como instalar todas las dependencias (Docker o local)
 - **[USAGE.md](USAGE.md)** — Como compilar, ejecutar y entender cada parte del proyecto
+- **[LEAN_TEOREMAS.md](LEAN_TEOREMAS.md)** — Como se relacionan las funciones, los teoremas y la FFI en Lean
 
 ## Inicio rapido (Docker)
 
@@ -76,6 +77,7 @@ risc0-lean-ffi/
 ├── .gitignore                    # Excluye target/, .lake/, .DS_Store
 ├── INSTALL.md                    # Guia de instalacion detallada
 ├── USAGE.md                      # Guia de ejecucion y explicacion del proyecto
+├── LEAN_TEOREMAS.md              # Relacion entre funciones, teoremas y FFI
 └── README.md                     # Este archivo
 ```
 

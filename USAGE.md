@@ -140,7 +140,9 @@ El **Guest** (`methods/guest/src/main.rs`) es el programa que corre **dentro** d
 
 ## Que hace el programa
 
-El programa ejecuta tres partes en secuencia. Ahora que sabemos los roles, veamos que hace cada parte:
+El programa ejecuta tres partes en secuencia. Ahora que sabemos los roles, veamos que hace cada parte.
+
+> **Aclaracion importante:** Las Partes 1 y 2/3 son **demos independientes** que corren una despues de la otra. La Parte 1 (Lean FFI) demuestra que funciones formalmente verificadas se pueden llamar desde Rust. Las Partes 2/3 (RISC Zero) demuestran que se puede generar y verificar una prueba ZK. Las funciones de Lean **no participan** en la prueba ZK — el guest usa SHA256, no las funciones de Lean. Son conceptos complementarios mostrados juntos con fines didacticos. Para mas detalle sobre esta relacion, ver [LEAN_TEOREMAS.md](LEAN_TEOREMAS.md).
 
 ### Parte 1: Lean FFI - Commitment Scheme
 
