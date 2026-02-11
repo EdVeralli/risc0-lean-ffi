@@ -196,14 +196,14 @@ El **host** (actuando como **prover**) quiere demostrar que conoce un secreto si
 6. El resultado es un **receipt** = journal (hash publico) + prueba STARK
 
 ```
-              ┌─────────────────────────────┐
-  PROVER      │         zkVM (Guest)         │
-  (host)      │                              │
-              │                              │
-  secreto ──→ │  hash = SHA256(secreto)      │ ──→ receipt:
-  (privado)   │  env::commit(&hash)          │     - hash (journal, publico)
-              │                              │     - prueba STARK
-              └─────────────────────────────┘
+              ┌────────────────────────────────┐
+  PROVER      │         zkVM (Guest)           │
+  (host)      │                                │
+              │                                │
+  secreto ──→ │  hash = SHA256(secreto)        │ ──→ receipt:
+  (privado)   │  env::commit(&hash)            │     - hash (journal, publico)
+              │                                │     - prueba STARK
+              └────────────────────────────────┘
                     El secreto MUERE aqui.
                     Solo el hash sale.
 ```
@@ -246,49 +246,49 @@ El **host** (ahora actuando como **verifier**) valida la prueba:
 ## Flujo completo del proyecto
 
 ```
-┌──────────────────────────────────────────────────────────────────┐
-│                        COMPILACION                               │
-│                                                                  │
-│  Verifier.lean ──lake build──→ Verifier.c ──cc──→ lean_verifier.a│
-│                                                       │          │
-│  guest/main.rs ──risc0-build──→ GUEST_ELF            │          │
-│                                     │                 │          │
-│  host/main.rs ──cargo──────────────→ host (binario) ←─┘          │
-│                                       + libleanshared (dinamica) │
-└──────────────────────────────────────────────────────────────────┘
+┌─────────────────────────────────────────────────────────────────────┐
+│                          COMPILACION                                │
+│                                                                     │
+│  Verifier.lean ──lake build──→ Verifier.c ──cc──→ lean_verifier.a   │
+│                                                        │            │
+│  guest/main.rs ──risc0-build──→ GUEST_ELF              │            │
+│                                      │                 │            │
+│  host/main.rs ──cargo───────────────→ host (binario) ←─┘            │
+│                                        + libleanshared (dinamica)   │
+└─────────────────────────────────────────────────────────────────────┘
 
-┌──────────────────────────────────────────────────────────────────┐
-│                    EJECUCION (host)                               │
-│                                                                  │
-│  Parte 1 — Lean FFI:                                             │
-│    Host llama funciones Lean via FFI (commitment scheme)         │
-│    Estas funciones tienen teoremas verificados por Lean          │
-│                                                                  │
-│  Parte 2 — Prover (genera la prueba):                            │
-│    1. Host (como prover) envia el secreto al Guest               │
-│    2. Guest corre dentro del zkVM:                               │
-│       - Lee el secreto (input privado)                           │
-│       - Calcula SHA256(secreto)                                  │
-│       - Publica el hash en el journal (output publico)           │
-│    3. RISC Zero genera la prueba STARK                           │
-│    4. El resultado es un receipt = journal + prueba              │
-│                                                                  │
-│  Parte 3 — Verifier (valida la prueba):                          │
-│    1. Host (como verifier) lee el hash del journal               │
-│    2. "¿Hashes coinciden?" → solo didactico (*)                  │
-│    3. receipt.verify(GUEST_ID) → ESTA es la verificacion real    │
-│       - Valida la prueba STARK criptograficamente                │
-│       - Confirma que se ejecuto el guest correcto (GUEST_ID)     │
-│       - Si alguien modifico el guest o el journal, FALLA         │
-│    4. Resultado: el prover conoce un secreto valido              │
-│       sin haberlo revelado                                       │
-└──────────────────────────────────────────────────────────────────┘
+┌─────────────────────────────────────────────────────────────────────┐
+│                        EJECUCION (host)                             │
+│                                                                     │
+│  Parte 1 — Lean FFI:                                                │
+│    Host llama funciones Lean via FFI (commitment scheme)            │
+│    Estas funciones tienen teoremas verificados por Lean             │
+│                                                                     │
+│  Parte 2 — Prover (genera la prueba):                               │
+│    1. Host (como prover) envia el secreto al Guest                  │
+│    2. Guest corre dentro del zkVM:                                  │
+│       - Lee el secreto (input privado)                              │
+│       - Calcula SHA256(secreto)                                     │
+│       - Publica el hash en el journal (output publico)              │
+│    3. RISC Zero genera la prueba STARK                              │
+│    4. El resultado es un receipt = journal + prueba                 │
+│                                                                     │
+│  Parte 3 — Verifier (valida la prueba):                             │
+│    1. Host (como verifier) lee el hash del journal                  │
+│    2. "¿Hashes coinciden?" → solo didactico (*)                     │
+│    3. receipt.verify(GUEST_ID) → ESTA es la verificacion real       │
+│       - Valida la prueba STARK criptograficamente                   │
+│       - Confirma que se ejecuto el guest correcto (GUEST_ID)        │
+│       - Si alguien modifico el guest o el journal, FALLA            │
+│    4. Resultado: el prover conoce un secreto valido                 │
+│       sin haberlo revelado                                          │
+└─────────────────────────────────────────────────────────────────────┘
 
 (*) "¿Hashes coinciden?" compara el hash local del host con el del
-journal. Esto solo es posible porque el host es prover Y verifier.
-En un sistema real, el verifier NO conoce el secreto, por lo tanto
-no puede calcular el hash por su cuenta. Solo hace
-receipt.verify(GUEST_ID).
+    journal. Esto solo es posible porque el host es prover Y verifier.
+    En un sistema real, el verifier NO conoce el secreto, por lo tanto
+    no puede calcular el hash por su cuenta. Solo hace
+    receipt.verify(GUEST_ID).
 
 En un sistema real:
   Prover ──genera receipt──→ lo envia ──→ Verifier
