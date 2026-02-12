@@ -150,7 +150,7 @@ El programa ejecuta tres partes en secuencia. Ahora que sabemos los roles, veamo
 ═══ Parte 1: Lean FFI - Commitment Scheme ═══
 
   [Lean] Commitment creado: 13647
-         (valor=42, salt=12345)
+         (valor=42, nonce=12345)
   [Lean] Verificación correcta: ✓
   [Lean] Verificación con valor falso: ✗
 ```

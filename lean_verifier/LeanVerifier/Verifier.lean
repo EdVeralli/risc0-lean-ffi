@@ -23,26 +23,26 @@ axiom hash_collision_resistant : ∀ (v1 s1 v2 s2 : UInt64),
 -- COMMITMENT SCHEME
 -- ============================================
 
-/-- Crear un commitment de un valor con salt -/
-def createCommitment (value : UInt64) (salt : UInt64) : UInt64 :=
+/-- Crear un commitment de un valor con nonce -/
+def createCommitment (value : UInt64) (nonce : UInt64) : UInt64 :=
   -- Simulación simple: en producción sería SHA256
-  let h1 := value.toNat * 31 + salt.toNat
+  let h1 := value.toNat * 31 + nonce.toNat
   let h2 := h1 % 999983  -- primo grande
   UInt64.ofNat h2
 
 /-- Verificar un commitment -/
-def verifyCommitment (hash : UInt64) (value : UInt64) (salt : UInt64) : Bool :=
-  createCommitment value salt == hash
+def verifyCommitment (hash : UInt64) (value : UInt64) (nonce : UInt64) : Bool :=
+  createCommitment value nonce == hash
 
 -- Teorema: Completeness - commitment correcto siempre verifica
-theorem commitment_completeness (value salt : UInt64) :
-    verifyCommitment (createCommitment value salt) value salt = true := by
+theorem commitment_completeness (value nonce : UInt64) :
+    verifyCommitment (createCommitment value nonce) value nonce = true := by
   simp [verifyCommitment]
 
 -- Teorema: Soundness - si verifica, el hash es correcto
-theorem commitment_soundness (hash value salt : UInt64) :
-    verifyCommitment hash value salt = true →
-    hash = createCommitment value salt := by
+theorem commitment_soundness (hash value nonce : UInt64) :
+    verifyCommitment hash value nonce = true →
+    hash = createCommitment value nonce := by
   intro h
   simp only [verifyCommitment, beq_iff_eq] at h
   exact h.symm
@@ -70,13 +70,13 @@ theorem hash_output_soundness (h0 h1 h2 h3 e0 e1 e2 e3 : UInt64) :
 
 /-- Crear commitment - exportado a C -/
 @[export lean_create_commitment]
-def leanCreateCommitment (value : UInt64) (salt : UInt64) : UInt64 :=
-  createCommitment value salt
+def leanCreateCommitment (value : UInt64) (nonce : UInt64) : UInt64 :=
+  createCommitment value nonce
 
 /-- Verificar commitment - exportado a C -/
 @[export lean_verify_commitment]
-def leanVerifyCommitment (hash : UInt64) (value : UInt64) (salt : UInt64) : UInt8 :=
-  if verifyCommitment hash value salt then 1 else 0
+def leanVerifyCommitment (hash : UInt64) (value : UInt64) (nonce : UInt64) : UInt8 :=
+  if verifyCommitment hash value nonce then 1 else 0
 
 /-- Verificar igualdad de hashes - exportado a C -/
 @[export lean_verify_hash_eq]

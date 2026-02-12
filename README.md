@@ -87,13 +87,13 @@ El archivo `Verifier.lean` contiene funciones con teoremas que Lean verifica en 
 
 ```lean
 -- Completeness: un commitment correcto SIEMPRE verifica
-theorem commitment_completeness (value salt : UInt64) :
-    verifyCommitment (createCommitment value salt) value salt = true
+theorem commitment_completeness (value nonce : UInt64) :
+    verifyCommitment (createCommitment value nonce) value nonce = true
 
 -- Soundness: si verifica, el hash ES correcto
-theorem commitment_soundness (hash value salt : UInt64) :
-    verifyCommitment hash value salt = true →
-    hash = createCommitment value salt
+theorem commitment_soundness (hash value nonce : UInt64) :
+    verifyCommitment hash value nonce = true →
+    hash = createCommitment value nonce
 
 -- Binding: no se puede abrir el commitment a un valor diferente
 theorem commitment_binding (hash v1 s1 v2 s2 : UInt64) :
@@ -119,7 +119,7 @@ theorem hash_output_soundness (h0 h1 h2 h3 e0 e1 e2 e3 : UInt64) :
 ═══ Parte 1: Lean FFI - Commitment Scheme ═══
 
   [Lean] Commitment creado: 13647
-         (valor=42, salt=12345)
+         (valor=42, nonce=12345)
   [Lean] Verificación correcta: ✓
   [Lean] Verificación con valor falso: ✗
 

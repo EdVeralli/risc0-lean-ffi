@@ -14,20 +14,20 @@ use sha2::{Sha256, Digest};
 // ============================================
 
 extern "C" {
-    fn lean_create_commitment(value: u64, salt: u64) -> u64;
-    fn lean_verify_commitment(hash: u64, value: u64, salt: u64) -> u8;
+    fn lean_create_commitment(value: u64, nonce: u64) -> u64;
+    fn lean_verify_commitment(hash: u64, value: u64, nonce: u64) -> u8;
 }
 
 // Wrappers seguros para las funciones Lean
 mod lean {
     use super::*;
 
-    pub fn create_commitment(value: u64, salt: u64) -> u64 {
-        unsafe { lean_create_commitment(value, salt) }
+    pub fn create_commitment(value: u64, nonce: u64) -> u64 {
+        unsafe { lean_create_commitment(value, nonce) }
     }
 
-    pub fn verify_commitment(hash: u64, value: u64, salt: u64) -> bool {
-        unsafe { lean_verify_commitment(hash, value, salt) == 1 }
+    pub fn verify_commitment(hash: u64, value: u64, nonce: u64) -> bool {
+        unsafe { lean_verify_commitment(hash, value, nonce) == 1 }
     }
 }
 
@@ -44,19 +44,19 @@ fn main() {
     println!();
 
     let secret_value: u64 = 42;
-    let salt: u64 = 12345;
+    let nonce: u64 = 12345;
 
     // Crear commitment usando función Lean verificada
-    let commitment = lean::create_commitment(secret_value, salt);
+    let commitment = lean::create_commitment(secret_value, nonce);
     println!("  [Lean] Commitment creado: {}", commitment);
-    println!("         (valor={}, salt={})", secret_value, salt);
+    println!("         (valor={}, nonce={})", secret_value, nonce);
 
     // Verificar commitment correcto
-    let valid = lean::verify_commitment(commitment, secret_value, salt);
+    let valid = lean::verify_commitment(commitment, secret_value, nonce);
     println!("  [Lean] Verificación correcta: {}", if valid { "✓" } else { "✗" });
 
     // Intentar fraude
-    let fraud = lean::verify_commitment(commitment, 99, salt);
+    let fraud = lean::verify_commitment(commitment, 99, nonce);
     println!("  [Lean] Verificación con valor falso: {}", if fraud { "✓" } else { "✗" });
     println!();
 

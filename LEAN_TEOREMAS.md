@@ -24,13 +24,13 @@ El archivo `lean_verifier/LeanVerifier/Verifier.lean` define tres funciones prin
 ### `createCommitment` — Crear un commitment
 
 ```lean
-def createCommitment (value : UInt64) (salt : UInt64) : UInt64 :=
-  let h1 := value.toNat * 31 + salt.toNat
+def createCommitment (value : UInt64) (nonce : UInt64) : UInt64 :=
+  let h1 := value.toNat * 31 + nonce.toNat
   let h2 := h1 % 999983
   UInt64.ofNat h2
 ```
 
-Recibe un valor y un salt, devuelve un hash (el commitment).
+Recibe un valor y un nonce, devuelve un hash (el commitment).
 Es como "meter un valor en una caja cerrada": se puede verificar despues, pero no se puede deducir el valor original mirando solo el hash.
 
 Ejemplo: `createCommitment 42 12345` devuelve `13647`.
@@ -38,13 +38,13 @@ Ejemplo: `createCommitment 42 12345` devuelve `13647`.
 ### `verifyCommitment` — Verificar un commitment
 
 ```lean
-def verifyCommitment (hash : UInt64) (value : UInt64) (salt : UInt64) : Bool :=
-  createCommitment value salt == hash
+def verifyCommitment (hash : UInt64) (value : UInt64) (nonce : UInt64) : Bool :=
+  createCommitment value nonce == hash
 ```
 
-Recibe un hash, un valor y un salt. Recalcula el commitment y compara. Si coinciden, devuelve `true`.
+Recibe un hash, un valor y un nonce. Recalcula el commitment y compara. Si coinciden, devuelve `true`.
 
-Es como "abrir la caja": demostrás que conoces el valor y el salt originales.
+Es como "abrir la caja": demostrás que conoces el valor y el nonce originales.
 
 ### `verifyHashOutput` — Verificar igualdad de hashes
 
@@ -65,28 +65,28 @@ Cada teorema dice algo sobre las funciones anteriores. Lean demuestra que son ve
 ### `commitment_completeness` — Completitud
 
 ```lean
-theorem commitment_completeness (value salt : UInt64) :
-    verifyCommitment (createCommitment value salt) value salt = true
+theorem commitment_completeness (value nonce : UInt64) :
+    verifyCommitment (createCommitment value nonce) value nonce = true
 ```
 
-**Que dice:** Si creo un commitment con cierto value y salt, y despues lo verifico con los mismos datos, **siempre** da `true`.
+**Que dice:** Si creo un commitment con cierto value y nonce, y despues lo verifico con los mismos datos, **siempre** da `true`.
 
 **Por que importa:** Garantiza que el sistema no rechaza commitments validos. No hay un caso en el que hagas todo bien y el sistema diga "no".
 
 **Relacion con las funciones:**
 
 ```
-createCommitment(value, salt) → hash
+createCommitment(value, nonce) → hash
                                   ↓
-verifyCommitment(hash, value, salt) → SIEMPRE true
+verifyCommitment(hash, value, nonce) → SIEMPRE true
 ```
 
 ### `commitment_soundness` — Solidez
 
 ```lean
-theorem commitment_soundness (hash value salt : UInt64) :
-    verifyCommitment hash value salt = true →
-    hash = createCommitment value salt
+theorem commitment_soundness (hash value nonce : UInt64) :
+    verifyCommitment hash value nonce = true →
+    hash = createCommitment value nonce
 ```
 
 **Que dice:** Si `verifyCommitment` devuelve `true`, entonces el hash que pasaste **es exactamente** el que produce `createCommitment` con esos datos.
@@ -96,9 +96,9 @@ theorem commitment_soundness (hash value salt : UInt64) :
 **Relacion con las funciones:**
 
 ```
-verifyCommitment(hash, value, salt) = true
+verifyCommitment(hash, value, nonce) = true
     ↓ entonces, necesariamente:
-hash = createCommitment(value, salt)
+hash = createCommitment(value, nonce)
 ```
 
 ### `commitment_binding` — Vinculacion
